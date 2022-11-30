@@ -3,7 +3,8 @@ services:
   db:
     user: postgres
     restart: always
-    image: cgr.dev/chainguard/postgres:latest
+      #image: cgr.dev/chainguard/postgres:latest
+    image: docker.io/library/postgres:15
     stop_grace_period: 1m
     userns: keep-id
     shm_size: 256mb
