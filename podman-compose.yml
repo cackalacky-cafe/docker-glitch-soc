@@ -1,31 +1,39 @@
 version: '3'
 services:
   db:
+    user: postgres
     restart: always
     image: cgr.dev/chainguard/postgres:latest
     stop_grace_period: 1m
+    userns: keep-id
     shm_size: 256mb
-    networks:
-      - internal_network
+      #networks:
+      # - internal_network
     environment:
       - 'POSTGRES_HOST_AUTH_METHOD=trust'
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "postgres"]
     volumes:
-      - /mastodon/postgres:/var/lib/postgresql/data
+      - /mastodon/postgres:/var/lib/postgresql/data:Z,U
+    ports:
+      - '127.0.0.1:5432:5432'
 
   redis:
+    user: redis
     restart: always
-    image: redis:7-alpine
-    networks:
-      - internal_network
+    image: docker.io/library/redis:7-alpine
+    userns: keep-id
+      #networks:
+      #- internal_network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
     volumes:
-      - /mastodon/redis:/data
+      - /mastodon/redis:/data:Z,U
 
   es:
+    user: elasticsearch
     restart: always
+    userns: keep-id
     image: docker.elastic.co/elasticsearch/elasticsearch:8.5.1
     environment:
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
@@ -38,30 +46,32 @@ services:
       - "cluster.name=es-mastodon"
       - "discovery.type=single-node"
       - "thread_pool.write.queue_size=1000"
-    networks:
-      - internal_network
+        #networks:
+        # - internal_network
     healthcheck:
       test: ["CMD-SHELL", "curl --silent --fail localhost:9200/_cluster/health || exit 1"]
     volumes:
-      - /mastodon/es:/usr/share/elasticsearch/data
+      - /mastodon/es:/usr/share/elasticsearch/data:Z,U
     ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-      nofile:
-        soft: 65536
-        hard: 65536
+      #memlock:
+      #  soft: -1
+      #  hard: -1
+      #nofile:
+      #  soft: 65536
+      #  hard: 65536
     ports:
       - '127.0.0.1:9200:9200'
 
   web:
-    image: yakumosaki/glitch-soc
+    user: mastodon
+    userns: keep-id
+    image: docker.io/yakumosaki/glitch-soc:latest
     restart: always
     env_file: env.production
-    command: bash -c "rm -f /opt/mastodon/tmp/pids/server.pid; bundle exec rails s -p 3000 -b '0.0.0.0'"
-    networks:
-      - external_network
-      - internal_network
+    command: bash -c "rm -f /opt/mastodon/tmp/pids/server.pid; env; bundle exec rails s -p 3000 -b '0.0.0.0'"
+      #networks:
+      #- external_network
+      #- internal_network
     healthcheck:
       test: ['CMD-SHELL', 'wget -q --spider --proxy=off localhost:3000/health || exit 1']
     ports:
@@ -71,16 +81,17 @@ services:
       - redis
       - es
     volumes:
-      - /mastodon/public/system:/opt/mastodon/public/system
+      - /mastodon/public/system:/opt/mastodon/public/system:Z,U
 
   streaming:
-    image: yakumosaki/glitch-soc
+    image: docker.io/yakumosaki/glitch-soc:latest
+    userns: keep-id
     restart: always
     env_file: env.production
     command: node ./streaming
-    networks:
-      - external_network
-      - internal_network
+      #networks:
+      #- external_network
+      #- internal_network
     healthcheck:
       test: ['CMD-SHELL', 'wget -q --spider --proxy=off localhost:4000/api/v1/streaming/health || exit 1']
     ports:
@@ -90,7 +101,8 @@ services:
       - redis
 
   sidekiq:
-    image: yakumosaki/glitch-soc
+    image: docker.io/yakumosaki/glitch-soc:latest
+    userns: keep-id
     restart: always
     env_file: env.production
     environment:
@@ -99,17 +111,17 @@ services:
     depends_on:
       - db
       - redis
-    networks:
-      - external_network
-      - internal_network
+        #networks:
+        #- external_network
+        #- internal_network
     volumes:
-      - /mastodon/public/system:/mastodon/public/system
+      - /mastodon/public/system:/mastodon/public/system:Z
     healthcheck:
       test: ['CMD-SHELL', "ps aux | grep '[s]idekiq\ 6' || false"]
 
-networks:
-  external_network:
-    internal: false
-  internal_network:
-    internal: true
+        #networks:
+        # external_network:
+        #  internal: false
+        # internal_network:
+        # internal: true
 
